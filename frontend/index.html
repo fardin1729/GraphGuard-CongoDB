@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GraphGuard | Global Supply Chain Risk & Cascading Failure Simulator</title>
+  <meta name="description" content="Production-grade Graph Database Web Application backed by CognoDB Cloud (openCypher over Bolt) and FastAPI. Simulates multi-hop supply chain cascading failures, single points of failure, and revenue-at-risk.">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo-box">
+          <i class="fa-solid fa-shield-halved logo-icon"></i>
+          <div>
+            <span class="logo-title">GraphGuard</span>
+            <span class="logo-badge">CognoDB openCypher</span>
+          </div>
+        </div>
+        <div class="header-subtitle">
+          Global Supply Chain Risk & Cascading Failure Simulator
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div id="dbStatusBadge" class="status-badge status-connecting" title="Click to reconnect or check health">
+          <span class="status-dot"></span>
+          <span id="dbStatusText">Checking DB...</span>
+          <span id="dbLatencyText" class="latency-text"></span>
+        </div>
+
+        <button id="btnSeedData" class="btn btn-secondary" title="Seed CognoDB Cloud with realistic 50+ node dataset">
+          <i class="fa-solid fa-database"></i> Seed Graph
+        </button>
+
+        <button id="btnToggleCypherDrawer" class="btn btn-primary" title="Open live openCypher query inspector drawer">
+          <i class="fa-solid fa-terminal"></i> Cypher Inspector
+          <span id="cypherBadgeCount" class="badge-counter">0</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar">
+        <div class="sidebar-tabs">
+          <button class="tab-btn active" data-tab="tab-simulation" id="navTabSimulation">
+            <i class="fa-solid fa-burst"></i> Simulator
+          </button>
+          <button class="tab-btn" data-tab="tab-spof" id="navTabSpof">
+            <i class="fa-solid fa-triangle-exclamation"></i> SPOF Detector
+          </button>
+          <button class="tab-btn" data-tab="tab-vendors" id="navTabVendors">
+            <i class="fa-solid fa-handshake-simple"></i> Alt Vendors
+          </button>
+          <button class="tab-btn" data-tab="tab-filter" id="navTabFilter">
+            <i class="fa-solid fa-filter"></i> Filters
+          </button>
+        </div>
+
+        <div class="tab-pane active" id="tab-simulation">
+          <div class="pane-header">
+            <h3><i class="fa-solid fa-bolt-lightning text-crimson"></i> Live Disruption Simulator</h3>
+            <p>Trigger a supplier outage or regional failure to simulate multi-hop recursive blast radius and calculate downstream quarterly revenue at risk.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="simulationTypeSelect">Disruption Mode</label>
+            <div class="segmented-control">
+              <button class="segment-btn active" id="segSupplier">Supplier Outage</button>
+              <button class="segment-btn" id="segRegion">Regional Disruption</button>
+            </div>
+          </div>
+
+          <div class="form-group" id="groupSupplierSelect">
+            <label for="supplierSelect">Select Target Supplier</label>
+            <select id="supplierSelect" class="form-control">
+              <option value="">Loading suppliers...</option>
+            </select>
+          </div>
+
+          <div class="form-group hidden" id="groupRegionSelect">
+            <label for="regionSelect">Select Target Region</label>
+            <select id="regionSelect" class="form-control">
+              <option value="">Loading regions...</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <div class="slider-header">
+              <label for="maxHopsSlider">Max Traversal Hops (BOM Depth)</label>
+              <span id="maxHopsValue" class="slider-badge">3 Hops</span>
+            </div>
+            <input type="range" id="maxHopsSlider" min="1" max="5" value="3" class="range-slider">
+          </div>
+
+          <div class="action-buttons">
+            <button id="btnRunSimulation" class="btn btn-danger btn-block">
+              <i class="fa-solid fa-play"></i> Simulate Cascading Failure
+            </button>
+            <button id="btnResetSimulation" class="btn btn-secondary btn-block">
+              <i class="fa-solid fa-rotate-left"></i> Reset Graph View
+            </button>
+          </div>
+
+          <div id="simulationResultCard" class="result-card hidden">
+            <div class="result-card-header">
+              <h4>Blast Radius Impact Summary</h4>
+              <span id="impactTargetBadge" class="badge badge-crimson">Target</span>
+            </div>
+
+            <div class="metrics-grid">
+              <div class="metric-box danger">
+                <span class="metric-label">Quarterly Revenue at Risk</span>
+                <span id="metricRevenueAtRisk" class="metric-value text-crimson">$0M</span>
+              </div>
+              <div class="metric-box warning">
+                <span class="metric-label">Affected Products</span>
+                <span id="metricAffectedProducts" class="metric-value text-amber">0</span>
+              </div>
+              <div class="metric-box info">
+                <span class="metric-label">Impacted Sub-Components</span>
+                <span id="metricAffectedComponents" class="metric-value text-cyan">0</span>
+              </div>
+              <div class="metric-box primary">
+                <span class="metric-label">Direct Suppliers Hit</span>
+                <span id="metricDirectSuppliers" class="metric-value text-purple">0</span>
+              </div>
+            </div>
+
+            <div class="path-breakdown-section">
+              <div class="section-title">
+                <span>Cascading Blast Traversal Paths</span>
+                <span id="pathCountBadge" class="badge">0 Paths</span>
+              </div>
+              <div id="pathListContainer" class="path-list-container">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-pane" id="tab-spof">
+          <div class="pane-header">
+            <h3><i class="fa-solid fa-triangle-exclamation text-amber"></i> SPOF Bottleneck Detector</h3>
+            <p>Identifies components that rely on a single vendor and calculates their total downstream revenue exposure.</p>
+          </div>
+
+          <div class="spof-summary-bar">
+            <div class="summary-chip chip-danger">
+              <span id="spofTotalCount">0</span> SPOFs Found
+            </div>
+            <div class="summary-chip chip-warning">
+              <span id="spofCritCount">0</span> Critical Bottlenecks
+            </div>
+          </div>
+
+          <div class="action-buttons">
+            <button id="btnRefreshSpof" class="btn btn-secondary btn-block">
+              <i class="fa-solid fa-arrows-rotate"></i> Refresh SPOF Scan
+            </button>
+          </div>
+
+          <div class="spof-table-container">
+            <table class="spof-table" id="spofTable">
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Supplier</th>
+                  <th>Revenue at Risk</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="spofTableBody">
+                <tr><td colspan="4" class="text-center">Loading SPOF data...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="tab-pane" id="tab-vendors">
+          <div class="pane-header">
+            <h3><i class="fa-solid fa-handshake-simple text-cyan"></i> Alternative Vendor Finder</h3>
+            <p>Finds and ranks backup suppliers for vulnerable components based on lead times, reliability, and regional geopolitical risk.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="vendorComponentSelect">Select Vulnerable Component</label>
+            <select id="vendorComponentSelect" class="form-control">
+              <option value="">Loading components...</option>
+            </select>
+          </div>
+
+          <div class="action-buttons">
+            <button id="btnFindAlternatives" class="btn btn-primary btn-block">
+              <i class="fa-solid fa-magnifying-glass"></i> Find Qualified Alternatives
+            </button>
+          </div>
+
+          <div id="vendorResultsContainer" class="vendor-results-container">
+            <div class="empty-placeholder">
+              <i class="fa-solid fa-layer-group"></i>
+              <p>Select a component above to discover backup suppliers and mitigation scores.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-pane" id="tab-filter">
+          <div class="pane-header">
+            <h3><i class="fa-solid fa-sliders text-purple"></i> Graph Filters & Search</h3>
+            <p>Filter active graph canvas by node labels or search specific supply chain entities.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="filterNodeType">Filter Node Label</label>
+            <select id="filterNodeType" class="form-control">
+              <option value="">All Entities (Complete Graph)</option>
+              <option value="Supplier">Suppliers (Tier-1, 2, 3)</option>
+              <option value="Component">Components (BOM)</option>
+              <option value="Product">Products (End Revenue Items)</option>
+              <option value="Facility">Manufacturing Facilities</option>
+              <option value="Region">Geopolitical Regions</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="filterSearchInput">Search Entity Name / ID</label>
+            <div class="search-input-box">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="filterSearchInput" class="form-control" placeholder="e.g. TSMC, Wafer, AI Server...">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Physics & Layout</label>
+            <div class="checkbox-group">
+              <label class="custom-checkbox">
+                <input type="checkbox" id="chkPhysics" checked>
+                <span>Live Force-Directed Physics</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="action-buttons">
+            <button id="btnApplyFilter" class="btn btn-primary btn-block">
+              <i class="fa-solid fa-check"></i> Apply Filters
+            </button>
+            <button id="btnResetFilter" class="btn btn-secondary btn-block">
+              <i class="fa-solid fa-arrow-rotate-left"></i> Reset Filters
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <main class="graph-canvas-container">
+        <div class="canvas-overlay canvas-top-bar">
+          <div class="legend-bar">
+            <div class="legend-item"><span class="legend-dot dot-supplier"></span> Supplier</div>
+            <div class="legend-item"><span class="legend-dot dot-component"></span> Component</div>
+            <div class="legend-item"><span class="legend-dot dot-product"></span> Product</div>
+            <div class="legend-item"><span class="legend-dot dot-facility"></span> Facility</div>
+            <div class="legend-item"><span class="legend-dot dot-region"></span> Region</div>
+            <div class="legend-item"><span class="legend-dot dot-disrupted"></span> Disrupted / At Risk</div>
+          </div>
+
+          <div class="canvas-controls">
+            <button id="btnFitGraph" class="canvas-btn" title="Fit graph in view">
+              <i class="fa-solid fa-expand"></i>
+            </button>
+            <button id="btnZoomIn" class="canvas-btn" title="Zoom in">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+            <button id="btnZoomOut" class="canvas-btn" title="Zoom out">
+              <i class="fa-solid fa-minus"></i>
+            </button>
+            <button id="btnStabilize" class="canvas-btn" title="Stabilize layout">
+              <i class="fa-solid fa-anchor"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="visGraphNetwork" class="vis-network-canvas"></div>
+
+        <div id="nodeInspectorPanel" class="node-inspector-panel hidden">
+          <div class="inspector-header">
+            <div class="inspector-title-box">
+              <span id="inspectorNodeTypeBadge" class="badge">Supplier</span>
+              <h4 id="inspectorNodeName">Entity Name</h4>
+            </div>
+            <button id="btnCloseInspector" class="close-btn">&times;</button>
+          </div>
+          <div class="inspector-body">
+            <div id="inspectorProperties" class="inspector-properties-grid">
+            </div>
+            <div class="inspector-actions">
+              <button id="btnSimulateThisNode" class="btn btn-danger btn-sm">
+                <i class="fa-solid fa-burst"></i> Simulate Outage
+              </button>
+              <button id="btnFindAltForThisNode" class="btn btn-primary btn-sm hidden">
+                <i class="fa-solid fa-handshake"></i> Find Backup Vendors
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div id="cypherInspectorDrawer" class="cypher-drawer">
+      <div class="drawer-header">
+        <div class="drawer-title">
+          <i class="fa-solid fa-terminal text-emerald"></i>
+          <span>Live openCypher Query Telemetry & AST Inspector</span>
+        </div>
+        <div class="drawer-meta">
+          <span id="cypherExecutedOn" class="meta-chip chip-primary">Target: CognoDB Cloud (Bolt)</span>
+          <span id="cypherLatencyBadge" class="meta-chip chip-success">Latency: 0.00 ms</span>
+          <span id="cypherRecordCount" class="meta-chip chip-info">Records: 0</span>
+          <button id="btnCopyCypher" class="btn btn-sm btn-secondary" title="Copy Cypher query to clipboard">
+            <i class="fa-solid fa-copy"></i> Copy Cypher
+          </button>
+          <button id="btnCloseCypherDrawer" class="close-btn">&times;</button>
+        </div>
+      </div>
+      <div class="drawer-body">
+        <div class="drawer-columns">
+          <div class="drawer-col">
+            <div class="code-box-header">
+              <span>Parameterized openCypher Statement</span>
+              <span class="code-badge">100% Parameterized</span>
+            </div>
+            <pre class="code-block"><code id="cypherQueryCode">// Run any simulation or filter to view the live Cypher query here.</code></pre>
+          </div>
+          <div class="drawer-col">
+            <div class="code-box-header">
+              <span>Query Parameters & Graph JSON AST</span>
+              <span class="code-badge">Parameters</span>
+            </div>
+            <pre class="code-block"><code id="cypherParamsCode">{}</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/cypher_drawer.js"></script>
+  <script src="js/graph_viz.js"></script>
+  <script src="js/simulation.js"></script>
+  <script src="js/spof.js"></script>
+  <script src="js/vendors.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
