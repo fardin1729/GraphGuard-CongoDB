@@ -56,22 +56,24 @@ graph TD
 
 ---
 
-## 3. Graph Schema & Realistic Domain
+## 3. Graph Schema & Realistic Domain Dataset
 
-### Labeled Nodes
-- **`Supplier`**: `id`, `name`, `country`, `tier` (`Tier-1`, `Tier-2`, `Tier-3`), `risk_score` (1-100), `lead_time_days`
-- **`Component`**: `id`, `name`, `category` (Silicon, Optical, Battery, Passive, Chassis), `criticality` (`Critical`, `High`, `Medium`, `Low`), `unit_cost_usd`
-- **`Product`**: `id`, `name`, `category` (Smartphone, AI Server, EV, Drone), `quarterly_revenue_millions`, `target_market`
-- **`Facility`**: `id`, `name`, `type` (`Foundry`, `Assembly`, `Testing`), `country`
-- **`Region`**: `id`, `name`, `geopolitical_risk_index` (1-100)
+The seed dataset features **44 curated nodes** across 5 distinct domains and **70 typed relationships** (114 total graph elements) modeling real-world high-tech supply chains:
 
-### Typed Relationships
-- `(:Supplier)-[:SUPPLIES {reliability_score: float, lead_time_days: int}]->(:Component)`
-- `(:Component)-[:DEPENDS_ON {quantity_required: int}]->(:Component)`
-- `(:Component)-[:ASSEMBLED_INTO {units_per_product: int}]->(:Product)`
-- `(:Facility)-[:MANUFACTURES]->(:Component)`
-- `(:Supplier)-[:LOCATED_IN]->(:Region)`
-- `(:Facility)-[:LOCATED_IN]->(:Region)`
+### Labeled Nodes (44 Total)
+- **`Supplier`** (14 nodes): `id`, `name`, `country`, `tier` (`Tier-1`, `Tier-2`, `Tier-3`), `risk_score` (1-100), `lead_time_days`
+- **`Component`** (13 nodes): `id`, `name`, `category` (Silicon, Optical, Battery, Passive, Chassis), `criticality` (`Critical`, `High`, `Medium`, `Low`), `unit_cost_usd`
+- **`Facility`** (7 nodes): `id`, `name`, `type` (`Foundry`, `Assembly`, `Testing`), `country`
+- **`Region`** (6 nodes): `id`, `name`, `geopolitical_risk_index` (1-100)
+- **`Product`** (4 nodes): `id`, `name`, `category` (Smartphone, AI Server, EV, Drone), `quarterly_revenue_millions`, `target_market`
+
+### Typed Relationships (70 Total)
+- `(:Supplier)-[:SUPPLIES {reliability_score: float, lead_time_days: int}]->(:Component)` (20 edges)
+- `(:Component)-[:DEPENDS_ON {quantity_required: int}]->(:Component)` (5 recursive edges)
+- `(:Component)-[:ASSEMBLED_INTO {units_per_product: int}]->(:Product)` (17 edges)
+- `(:Facility)-[:MANUFACTURES]->(:Component)` (7 edges)
+- `(:Supplier)-[:LOCATED_IN]->(:Region)` (14 edges)
+- `(:Facility)-[:LOCATED_IN]->(:Region)` (7 edges)
 
 ---
 
